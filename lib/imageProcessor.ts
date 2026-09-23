@@ -30,11 +30,12 @@ export function loadImageFromFile(file: File): Promise<HTMLImageElement> {
 
 /**
  * Draws `img` onto a canvas sized targetW x targetH using a centered
- * "cover" crop (fills the frame, crops overflow) — the standard approach
- * ad-ops pipelines use so every derivative keeps the same visual crop
- * intent as the master, regardless of target aspect ratio.
+ * "contain" fit — the whole image is scaled down (or up) to fit inside
+ * the frame with nothing cropped, and the leftover space is letterboxed
+ * (or pillarboxed) with a solid background. Every derivative shows the
+ * complete master creative regardless of target aspect ratio.
  */
-function drawCover(
+function drawContain(
   img: HTMLImageElement,
   targetW: number,
   targetH: number
@@ -54,22 +55,30 @@ function drawCover(
   const srcRatio = img.naturalWidth / img.naturalHeight;
   const targetRatio = targetW / targetH;
 
-  let sx: number, sy: number, sw: number, sh: number;
+  let dw: number, dh: number;
   if (srcRatio > targetRatio) {
-    // Source is wider than target: crop left/right.
-    sh = img.naturalHeight;
-    sw = sh * targetRatio;
-    sy = 0;
-    sx = (img.naturalWidth - sw) / 2;
+    // Source is relatively wider than the frame: fit to width, letterbox top/bottom.
+    dw = targetW;
+    dh = dw / srcRatio;
   } else {
-    // Source is taller than target: crop top/bottom.
-    sw = img.naturalWidth;
-    sh = sw / targetRatio;
-    sx = 0;
-    sy = (img.naturalHeight - sh) / 2;
+    // Source is relatively taller than the frame: fit to height, pillarbox left/right.
+    dh = targetH;
+    dw = dh * srcRatio;
   }
+  const dx = (targetW - dw) / 2;
+  const dy = (targetH - dh) / 2;
 
-  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, targetW, targetH);
+  ctx.drawImage(
+    img,
+    0,
+    0,
+    img.naturalWidth,
+    img.naturalHeight,
+    dx,
+    dy,
+    dw,
+    dh
+  );
   return canvas;
 }
 
@@ -135,7 +144,7 @@ export async function exportSize(
   img: HTMLImageElement,
   spec: SizeSpec
 ): Promise<ExportResult> {
-  const canvas = drawCover(img, spec.width, spec.height);
+  const canvas = drawContain(img, spec.width, spec.height);
 
   let blob: Blob;
   let quality: number;

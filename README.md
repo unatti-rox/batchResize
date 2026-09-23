@@ -1,8 +1,9 @@
 # Batch Resize — Creative Export Dashboard
 
 Upload one master creative and generate every required **social, display,
-and print** ad size in a single pass — cropped, compressed under a weight
-cap where the network requires it, and named to spec. Everything runs
+and print** ad size in a single pass — the full creative is always kept,
+never cropped, and compressed under a weight cap where the network
+requires it, then named to spec. Everything runs
 client-side in the browser (canvas resize + compression + ZIP packaging),
 so there's no backend, no upload to a server, and no per-run cost.
 
@@ -17,8 +18,11 @@ so there's no backend, no upload to a server, and no per-run cost.
      `200x200`, `970x90`, `728x90`, `468x60`.
    - **Print**: US Letter, A4, A5 Flyer, Business Card, Poster 18×24 — all
      at print DPI, exported at full resolution (no weight cap).
-3. **Generate** — each size is center-cropped ("cover" fit) to its exact
-   pixel dimensions, then, for every social/display size, JPEG quality is
+3. **Generate** — each size is fit inside its exact pixel dimensions with
+   a centered **"contain" scale** (the whole creative is resized down or
+   up to fit the frame; nothing is ever cropped or cut off). Leftover
+   space on a mismatched aspect ratio is letterboxed/pillarboxed with a
+   solid background. Then, for every social/display size, JPEG quality is
    binary-searched until the file lands **under 50KB** (the cap requested
    for ad-network delivery). Print sizes are exported at high quality with
    no cap, since print assets are inherently large.

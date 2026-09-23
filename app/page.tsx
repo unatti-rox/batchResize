@@ -102,8 +102,9 @@ export default function Home() {
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-slate-400">
           Upload one master creative and generate every required social,
-          display, and print size in a single pass — cropped, compressed
-          under 50KB where a network requires it, and named to spec.
+          display, and print size in a single pass — nothing is cropped,
+          full creative scaled to fit each frame, compressed under 50KB
+          where a network requires it, and named to spec.
         </p>
       </header>
 
