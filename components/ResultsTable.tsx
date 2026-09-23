@@ -33,6 +33,7 @@ export default function ResultsTable({ baseName, results }: ResultsTableProps) {
                     <th className="px-4 py-2 font-medium">Preview</th>
                     <th className="px-4 py-2 font-medium">File name</th>
                     <th className="px-4 py-2 font-medium">Size (px)</th>
+                    <th className="px-4 py-2 font-medium">Fill</th>
                     <th className="px-4 py-2 font-medium">Weight</th>
                     <th className="px-4 py-2 font-medium">Status</th>
                     <th className="px-4 py-2 font-medium"></th>
@@ -59,6 +60,24 @@ export default function ResultsTable({ baseName, results }: ResultsTableProps) {
                         </td>
                         <td className="px-4 py-2 font-mono text-xs text-slate-400">
                           {r.width}×{r.height}
+                        </td>
+                        <td className="px-4 py-2">
+                          {r.fillMode === "ai-extend" ? (
+                            <span className="inline-flex items-center rounded-full bg-accent/15 px-2 py-0.5 text-xs font-medium text-accent">
+                              AI extended
+                            </span>
+                          ) : r.fillMode === "ai-fallback" ? (
+                            <span
+                              className="inline-flex items-center rounded-full bg-warn/15 px-2 py-0.5 text-xs font-medium text-warn"
+                              title={r.fallbackReason}
+                            >
+                              Fallback fit
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center rounded-full bg-line px-2 py-0.5 text-xs font-medium text-slate-400">
+                              Fit
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-2 font-mono text-xs text-slate-400">
                           {kb}KB

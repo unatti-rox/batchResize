@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Dropzone from "@/components/Dropzone";
 import SizeSelector from "@/components/SizeSelector";
 import StatTiles from "@/components/StatTiles";
 import ResultsTable from "@/components/ResultsTable";
-import { exportAll, loadImageFromFile, type ExportResult } from "@/lib/imageProcessor";
+import { loadImageFromFile, type ExportResult } from "@/lib/imageProcessor";
+import { generateExports } from "@/lib/generate";
 import { baseNameFromFile } from "@/lib/naming";
 import { buildExportZip, triggerDownload } from "@/lib/zip";
 import { SIZE_LIBRARY, type SizeCategory } from "@/lib/sizes";
@@ -21,6 +22,23 @@ export default function Home() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number; label: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [aiEnabled, setAiEnabled] = useState(true);
+  const [aiConfigured, setAiConfigured] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/outpaint")
+      .then((r) => r.json())
+      .then((j) => {
+        if (!cancelled) setAiConfigured(Boolean(j?.configured));
+      })
+      .catch(() => {
+        if (!cancelled) setAiConfigured(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const baseName = useMemo(
     () => (file ? baseNameFromFile(file.name) : "creative"),
@@ -71,8 +89,13 @@ export default function Home() {
     setIsGenerating(true);
     setResults([]);
     try {
-      const out = await exportAll(image, specs, (done, total, current) => {
-        setProgress({ done, total, label: `${current.platform} — ${current.label}` });
+      const useAI = aiEnabled && Boolean(aiConfigured);
+      const out = await generateExports(image, specs, useAI, (p) => {
+        setProgress({
+          done: p.done,
+          total: p.total,
+          label: p.detail ?? `${p.spec.platform} — ${p.spec.label}`,
+        });
       });
       setResults(out);
     } catch (e) {
@@ -90,6 +113,7 @@ export default function Home() {
   }
 
   const selectedCount = selected.size;
+  const fallbackCount = results.filter((r) => r.fillMode === "ai-fallback").length;
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
@@ -102,9 +126,10 @@ export default function Home() {
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-slate-400">
           Upload one master creative and generate every required social,
-          display, and print size in a single pass — nothing is cropped,
-          full creative scaled to fit each frame, compressed under 50KB
-          where a network requires it, and named to spec.
+          display, and print size in a single pass — nothing is cropped, the
+          background is generatively extended to fill each frame instead of
+          letterboxing, compressed under 50KB where a network requires it,
+          and named to spec.
         </p>
       </header>
 
@@ -118,6 +143,37 @@ export default function Home() {
               image ? `${image.naturalWidth}×${image.naturalHeight}px` : null
             }
           />
+
+          <div className="rounded-xl border border-line bg-panel p-4">
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={aiEnabled}
+                onChange={(e) => setAiEnabled(e.target.checked)}
+                disabled={aiConfigured === false}
+                className="mt-0.5 h-3.5 w-3.5 rounded border-line accent-accent2"
+              />
+              <span>
+                <span className="block text-sm font-medium text-slate-100">
+                  Extend background with AI (outpainting)
+                </span>
+                <span className="block text-xs text-slate-500">
+                  Social &amp; display sizes whose ratio doesn&apos;t match the
+                  master get their background generatively filled instead of
+                  letterboxed. Print always uses a plain fit. Adds a few
+                  seconds per unique frame shape.
+                </span>
+              </span>
+            </label>
+            {aiConfigured === false ? (
+              <p className="mt-2 rounded-md bg-warn/10 px-3 py-2 text-xs text-warn">
+                Not configured on this deployment — add an{" "}
+                <code className="font-mono">OPENAI_API_KEY</code> environment
+                variable in your Vercel project settings and redeploy.
+                Exports will use a plain fit until then.
+              </p>
+            ) : null}
+          </div>
 
           <div className="rounded-xl border border-line bg-panel p-4">
             <button
@@ -153,6 +209,14 @@ export default function Home() {
               >
                 Download all as ZIP
               </button>
+            ) : null}
+
+            {fallbackCount > 0 ? (
+              <p className="mt-3 text-xs text-warn">
+                {fallbackCount} export{fallbackCount === 1 ? "" : "s"} fell
+                back to a plain fit — AI extension failed for those sizes.
+                See the status column below for details.
+              </p>
             ) : null}
 
             {error ? <p className="mt-3 text-xs text-bad">{error}</p> : null}

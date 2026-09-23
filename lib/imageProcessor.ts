@@ -1,5 +1,7 @@
 import type { SizeSpec } from "./sizes";
 
+export type FillMode = "ai-extend" | "contain" | "ai-fallback";
+
 export interface ExportResult {
   spec: SizeSpec;
   blob: Blob;
@@ -10,6 +12,8 @@ export interface ExportResult {
   format: "jpeg" | "png";
   overCap: boolean;
   dataUrl: string;
+  fillMode: FillMode;
+  fallbackReason?: string;
 }
 
 export function loadImageFromFile(file: File): Promise<HTMLImageElement> {
@@ -35,8 +39,10 @@ export function loadImageFromFile(file: File): Promise<HTMLImageElement> {
  * (or pillarboxed) with a solid background. Every derivative shows the
  * complete master creative regardless of target aspect ratio.
  */
-function drawContain(
-  img: HTMLImageElement,
+export function drawContain(
+  img: CanvasImageSource,
+  srcW: number,
+  srcH: number,
   targetW: number,
   targetH: number
 ): HTMLCanvasElement {
@@ -52,7 +58,7 @@ function drawContain(
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, targetW, targetH);
 
-  const srcRatio = img.naturalWidth / img.naturalHeight;
+  const srcRatio = srcW / srcH;
   const targetRatio = targetW / targetH;
 
   let dw: number, dh: number;
@@ -68,17 +74,7 @@ function drawContain(
   const dx = (targetW - dw) / 2;
   const dy = (targetH - dh) / 2;
 
-  ctx.drawImage(
-    img,
-    0,
-    0,
-    img.naturalWidth,
-    img.naturalHeight,
-    dx,
-    dy,
-    dw,
-    dh
-  );
+  ctx.drawImage(img, 0, 0, srcW, srcH, dx, dy, dw, dh);
   return canvas;
 }
 
@@ -140,12 +136,18 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   });
 }
 
-export async function exportSize(
-  img: HTMLImageElement,
-  spec: SizeSpec
+/**
+ * Compresses an already-composed canvas (exactly spec.width x spec.height)
+ * to a blob, capping JPEG weight where the spec requires it. Shared by the
+ * plain contain-fit path and the AI-extended path — both end up with a
+ * fully-composed canvas by this point, just built differently.
+ */
+export async function compressCanvas(
+  canvas: HTMLCanvasElement,
+  spec: SizeSpec,
+  fillMode: FillMode,
+  fallbackReason?: string
 ): Promise<ExportResult> {
-  const canvas = drawContain(img, spec.width, spec.height);
-
   let blob: Blob;
   let quality: number;
 
@@ -172,7 +174,23 @@ export async function exportSize(
     format: spec.format,
     overCap,
     dataUrl,
+    fillMode,
+    fallbackReason,
   };
+}
+
+export async function exportSize(
+  img: HTMLImageElement,
+  spec: SizeSpec
+): Promise<ExportResult> {
+  const canvas = drawContain(
+    img,
+    img.naturalWidth,
+    img.naturalHeight,
+    spec.width,
+    spec.height
+  );
+  return compressCanvas(canvas, spec, "contain");
 }
 
 export async function exportAll(
